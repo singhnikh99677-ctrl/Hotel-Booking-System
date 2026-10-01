@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hotel-booking-config
+  namespace: hotel-booking
+data:
+  DATABASE_URL: "sqlite:///./hotel_booking.db"
+  LOG_LEVEL: "INFO"

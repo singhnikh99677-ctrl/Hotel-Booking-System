@@ -1,0 +1,80 @@
+name: Hotel Booking CI/CD
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Bandit
+        run: bandit -r app
+
+      - name: Run pip-audit
+        run: pip-audit -r requirements.txt
+
+      - name: Run pytest
+        run: pytest
+
+      - name: Coverage report
+        run: pytest --cov=app --cov-report=term-missing
+
+      - name: Build Docker image
+        run: docker build -t ghcr.io/${{ github.repository_owner }}/hotel-booking:${{ github.sha }} -t ghcr.io/${{ github.repository_owner }}/hotel-booking:latest .
+
+      - name: Login to GHCR
+        run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+
+      - name: Push Docker image to GHCR
+        run: |
+          docker push ghcr.io/${{ github.repository_owner }}/hotel-booking:${{ github.sha }}
+          docker push ghcr.io/${{ github.repository_owner }}/hotel-booking:latest
+
+  cd:
+    needs: ci
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment: production
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure kubectl
+        if: ${{ secrets.KUBE_CONFIG != '' }}
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBE_CONFIG }}" > $HOME/.kube/config
+          chmod 600 $HOME/.kube/config
+
+      - name: Deploy to Kubernetes
+        if: ${{ secrets.KUBE_CONFIG != '' }}
+        run: |
+          kubectl apply -f k8s/
+          kubectl rollout status deployment/hotel-api -n hotel-booking
+
+      - name: Deployment info
+        if: ${{ secrets.KUBE_CONFIG == '' }}
+        run: |
+          echo "This job is configured for CD to a real Kubernetes cluster."
+          echo "Add the KUBE_CONFIG secret to enable deployment."
