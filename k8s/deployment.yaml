@@ -20,7 +20,7 @@ spec:
     spec:
       containers:
         - name: hotel-api
-          image: ghcr.io/example/hotel-booking:latest
+          image: ghcr.io/singhnikh99677-ctrl/hotel-booking:latest
           imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8000
